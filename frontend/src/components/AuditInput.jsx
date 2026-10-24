@@ -9,7 +9,7 @@ export default function AuditInput({
   isLoading,
   loadingStep = '',
   availableModels = [],
-  activeModel = 'llama3.2',
+  activeModel = 'gemma4',
 }) {
   const [url, setUrl] = useState('');
   const [includeAi, setIncludeAi] = useState(true);
@@ -177,12 +177,13 @@ export default function AuditInput({
                     onChange={(e) => setSelectedModel(e.target.value)}
                     className="w-full bg-slate-900 text-slate-200 p-2 rounded-lg border border-slate-700 focus:outline-none focus:border-cyan-500"
                   >
-                    <option value="llama3.2">llama3.2 (Recommended, Fast & Concise)</option>
+                    <option value="gemma4">gemma4 (Recommended, Fast & Flexible)</option>
+                    <option value="llama3.2">llama3.2 (Fast & Concise)</option>
                     <option value="llama3.1">llama3.1 (High Reasoning)</option>
                     <option value="mistral">mistral (Balanced)</option>
                     <option value="qwen2.5-coder">qwen2.5-coder (Code Fixes)</option>
                     {availableModels
-                      .filter((m) => !['llama3.2', 'llama3.1', 'mistral', 'qwen2.5-coder'].includes(m))
+                      .filter((m) => !['gemma4', 'llama3.2', 'llama3.1', 'mistral', 'qwen2.5-coder'].includes(m))
                       .map((m) => (
                         <option key={m} value={m}>
                           {m} (Installed Locally)

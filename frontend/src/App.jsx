@@ -146,7 +146,7 @@ export default function App() {
               isLoading={isLoading}
               loadingStep={loadingStep}
               availableModels={systemHealth?.available_models || []}
-              activeModel={systemHealth?.active_model || 'llama3.2'}
+              activeModel={systemHealth?.active_model || 'gemma4'}
             />
 
             {/* Feature highlights grid below input */}

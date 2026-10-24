@@ -99,7 +99,7 @@ export default function AiAssistant({
                 AI Executive Synthesis
               </h3>
               <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
-                Model: {aiAnalysis.model_used || 'Ollama / Llama 3.2'}
+                Model: {aiAnalysis.model_used || 'Ollama / Gemma 4'}
               </span>
             </div>
             <p className="text-xs text-slate-400">

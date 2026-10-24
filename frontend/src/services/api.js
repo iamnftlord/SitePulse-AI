@@ -16,7 +16,7 @@ export async function fetchHealth() {
       version: '0.1.0',
       ollama_connected: false,
       ollama_url: 'http://localhost:11434',
-      active_model: 'llama3.2',
+      active_model: 'gemma4',
       available_models: [],
     };
   }
@@ -28,7 +28,7 @@ export async function fetchModels() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
-    return { connected: false, active_model: 'llama3.2', available_models: [] };
+    return { connected: false, active_model: 'gemma4', available_models: [] };
   }
 }
 

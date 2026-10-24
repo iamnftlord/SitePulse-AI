@@ -413,7 +413,7 @@ class AIAdvisor:
                 "1. **Deploy Security Headers**: Implement HSTS, CSP, and X-Content-Type-Options via your CDN/reverse proxy.\n"
                 "2. **Optimize Core Web Vitals**: Compress assets with WebP/AVIF, enable Gzip/Brotli, and lazy-load below-the-fold media.\n"
                 "3. **Ensure Semantic HTML**: Maintain a strict heading hierarchy (one H1 per page), declare `lang='en'`, and specify descriptive meta descriptions.\n\n"
-                "*Note: Connect Ollama locally with `ollama run llama3.2` to unlock continuous contextual deep-dive conversational reasoning.*"
+                "*Note: Connect Ollama locally with `ollama run gemma4` to unlock continuous contextual deep-dive conversational reasoning.*"
             )
 
 

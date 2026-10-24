@@ -10,7 +10,7 @@ export default function Navbar({
 }) {
   const isHealthy = systemHealth?.status === 'healthy';
   const isOllamaConnected = systemHealth?.ollama_connected;
-  const activeModel = systemHealth?.active_model || 'llama3.2';
+  const activeModel = systemHealth?.active_model || 'gemma4';
 
   return (
     <header className="sticky top-0 z-40 w-full glass-panel border-b border-slate-800/80 px-4 lg:px-8 py-3.5">

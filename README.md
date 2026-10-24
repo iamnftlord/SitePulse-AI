@@ -21,7 +21,7 @@ SitePulse AI is an open-source website intelligence and technical defect auditin
   - **Accessibility & Mobile:** Viewport scalability, image missing alt attribute audit, HTML `lang` attributes, and WCAG 2.1 compliance indicators.
   - **Performance & Tech Stack:** Server response latency (TTFB), total page payload weight, and automatic technology stack fingerprinting (React, Next.js, WordPress, Nginx, Cloudflare, etc.).
 - **📊 Weighted Health Scoring Engine:** Deterministic rule matrix calculating a 0–100 health score with letter grades (A+ to F) and severity ranking (Critical, High, Medium, Low).
-- **🧠 Open-Weight AI Remediation Agent:** Integrates seamlessly with **Ollama** (`llama3.2`, `llama3.1`, `mistral`, `qwen2.5-coder`) with a zero-dependency deterministic heuristic fallback.
+- **🧠 Open-Weight AI Remediation Agent:** Powered by Google DeepMind's **Gemma 4** (`gemma4`) via **Ollama** (with full support for `gemma4:e4b`, `gemma4:12b`, `llama3.2`, `mistral`, `qwen2.5-coder`), backed by an automatic deterministic heuristic fallback.
 - **💬 Interactive AI Chat Assistant:** Ask follow-up remediation questions about any finding directly within the dashboard.
 - **🔒 Enterprise-Grade SSRF Protection:** Asynchronous DNS resolution blocking private RFC 1918 subnets, loopbacks, and cloud metadata services (AWS/GCP/Azure `169.254.169.254`).
 - **⏱️ Sliding-Window Rate Limiting:** Enforces client IP rate limits to mitigate abuse and denial-of-service.
@@ -52,7 +52,21 @@ graph TD
 
 ## 💻 Setup & Running Locally
 
-### 1. Backend (Python + FastAPI)
+### 1. AI Engine (Ollama + Gemma 4)
+
+SitePulse AI defaults to Google DeepMind's **Gemma 4** (`gemma4`), delivering fast, flexible, and powerful reasoning with up to 256K context support and agentic tool use (replacing legacy Gemma 2):
+
+```bash
+# Pull and start Gemma 4 locally
+ollama run gemma4
+
+# Or for lightweight edge devices / lower memory:
+ollama run gemma4:e4b
+```
+
+*(Note: If Ollama is not running, SitePulse AI automatically falls back to its deterministic rule heuristic engine without crashing).*
+
+### 2. Backend (Python + FastAPI)
 
 ```bash
 cd backend

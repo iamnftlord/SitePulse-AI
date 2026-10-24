@@ -117,7 +117,7 @@ class AnalyzeRequest(BaseModel):
 
     url: str = Field(..., description="Full URL to analyze (e.g. https://example.com)")
     include_ai: bool = Field(default=True, description="Whether to generate Ollama AI recommendations")
-    model: Optional[str] = Field(default=None, description="Ollama model override, e.g. llama3.2")
+    model: Optional[str] = Field(default=None, description="Ollama model override, e.g. gemma4")
     custom_prompt: Optional[str] = Field(default=None, description="Optional custom instructions for AI advisor")
 
     @field_validator("url")

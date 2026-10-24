@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # Ollama Configuration
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "llama3.2"
+    OLLAMA_MODEL: str = "gemma4"
     OLLAMA_REQUEST_TIMEOUT: float = 60.0
 
     # Crawler Configuration
