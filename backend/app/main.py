@@ -1,12 +1,17 @@
 import logging
+import time
+import uuid
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
-from app.api.routes import router
+from app.api.routes import router, analyze_website
 from app.core.config import settings
+from app.core.rate_limiter import RateLimitMiddleware
+from app.core.security import SSRFValidationError
 
-# Configure logging
+# Configure structured logging
 logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
     format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
@@ -16,15 +21,17 @@ logger = logging.getLogger("sitepulse.main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application startup and shutdown events."""
+    """Application startup and shutdown lifecycle management."""
     logger.info("=" * 60)
     logger.info(f" Starting {settings.PROJECT_NAME} v{settings.VERSION}")
     logger.info(f" Environment: {settings.ENVIRONMENT} | Debug: {settings.DEBUG}")
+    logger.info(f" Rate Limiting: {'Enabled (' + str(settings.RATE_LIMIT_PER_MINUTE) + '/min)' if settings.RATE_LIMIT_ENABLED else 'Disabled'}")
+    logger.info(f" SSRF Private IPs: {'Allowed (Dev Mode)' if settings.ALLOW_PRIVATE_IPS else 'Blocked (Production Mode)'}")
     logger.info(f" Ollama URL: {settings.OLLAMA_BASE_URL} (Model: {settings.OLLAMA_MODEL})")
     logger.info(f" Docs available at: http://{settings.HOST}:{settings.PORT}/docs")
     logger.info("=" * 60)
     yield
-    logger.info(f"Shutting down {settings.PROJECT_NAME}...")
+    logger.info(f"Shutting down {settings.PROJECT_NAME} gracefully...")
 
 
 app = FastAPI(
@@ -40,7 +47,24 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Configure CORS
+# 1. Tracing & Performance Middleware
+@app.middleware("http")
+async def request_tracing_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    start_time = time.perf_counter()
+
+    response: Response = await call_next(request)
+
+    process_time = round((time.perf_counter() - start_time) * 1000, 2)
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Process-Time-Ms"] = str(process_time)
+    return response
+
+
+# 2. Rate Limiting Middleware
+app.add_middleware(RateLimitMiddleware)
+
+# 3. CORS Middleware
 origins = settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else ["*"]
 app.add_middleware(
     CORSMiddleware,
@@ -48,12 +72,33 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID", "X-Process-Time-Ms", "Retry-After"],
 )
 
-# Register routes
+# Global Exception Handlers
+@app.exception_handler(SSRFValidationError)
+async def ssrf_exception_handler(request: Request, exc: SSRFValidationError):
+    logger.warning(f"SSRF violation blocked from {request.client.host if request.client else 'unknown'}: {exc}")
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={
+            "error": "SecurityValidationError",
+            "detail": f"Target URL failed security verification: {str(exc)}",
+            "type": "ssrf_violation",
+        },
+    )
+
+
+# Register API Routes
 app.include_router(router)
-from app.api.routes import analyze_website
 app.add_api_route("/api/audit", analyze_website, methods=["POST"], include_in_schema=False)
+
+
+# Health and Liveness Probes
+@app.get("/healthz", tags=["System"])
+async def liveness_probe():
+    """Lightweight Kubernetes/Docker container liveness probe."""
+    return {"status": "ok", "timestamp": time.time()}
 
 
 @app.get("/", tags=["Root"])
@@ -65,6 +110,7 @@ async def root():
         "description": "Website Intelligence & Technical Problem Analyzer Assistant",
         "documentation": "/docs",
         "health_check": f"{settings.API_V1_PREFIX}/health",
+        "liveness": "/healthz",
         "status": "online",
     }
 

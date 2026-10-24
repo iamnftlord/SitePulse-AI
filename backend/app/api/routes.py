@@ -3,6 +3,7 @@ import time
 from fastapi import APIRouter, HTTPException, status
 
 from app.core.config import settings
+from app.core.security import SSRFValidationError
 from app.models.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -60,6 +61,11 @@ async def analyze_website(request: AnalyzeRequest):
 
     try:
         metadata, soup, html_text = await crawler.fetch_page(request.url)
+    except SSRFValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Security Policy Violation: {str(exc)}",
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

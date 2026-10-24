@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     CRAWLER_USER_AGENT: str = "SitePulseAI-Auditor/1.0 (+https://github.com/SitePulseAI/sitepulse)"
     MAX_PAGE_SIZE_BYTES: int = 10 * 1024 * 1024  # 10MB limit
 
+    # Security & Rate Limiting
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_PER_MINUTE: int = 30
+    ALLOW_PRIVATE_IPS: bool = False
+
     # CORS Configuration
     CORS_ORIGINS: Union[List[str], str] = ["*"]
 

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 from typing import Dict, Optional, Tuple
 from urllib.parse import urljoin, urlparse
@@ -7,12 +8,17 @@ from bs4 import BeautifulSoup
 import httpx
 
 from app.core.config import settings
+from app.core.security import SSRFValidationError, validate_target_url
 from app.models.schemas import CrawledMetadata
 from app.services.tech_detector import TechDetector
 
+logger = logging.getLogger("sitepulse.crawler")
+
+MAX_REDIRECTS = 5
+
 
 class WebsiteCrawler:
-    """Asynchronous crawler for extracting web assets, DOM elements, and network metrics."""
+    """Asynchronous, SSRF-hardened crawler for extracting web assets, DOM elements, and network metrics."""
 
     def __init__(self, timeout: float = settings.CRAWLER_TIMEOUT_SECONDS):
         self.timeout = timeout
@@ -23,28 +29,69 @@ class WebsiteCrawler:
         }
 
     async def fetch_page(self, url: str) -> Tuple[CrawledMetadata, BeautifulSoup, str]:
-        """Crawls the target URL and extracts comprehensive technical metadata."""
+        """Crawls the target URL safely with SSRF protection and extracts comprehensive technical metadata."""
+        # 1. SSRF check on initial URL
+        validated_url = await validate_target_url(url, allow_private=settings.ALLOW_PRIVATE_IPS)
         start_time = time.perf_counter()
+
+        current_url = validated_url
+        redirect_count = 0
+        final_response: Optional[httpx.Response] = None
 
         async with httpx.AsyncClient(
             timeout=self.timeout,
-            follow_redirects=True,
-            verify=False,  # Still check https in audit, but avoid crashing on self-signed certs
+            follow_redirects=False,  # Manually inspect every redirect hop against SSRF
+            verify=False,
             headers=self.headers,
         ) as client:
-            try:
-                response = await client.get(url)
-            except httpx.RequestError as exc:
-                raise ValueError(f"Failed to fetch {url}: {str(exc)}") from exc
+            while redirect_count <= MAX_REDIRECTS:
+                try:
+                    response = await client.get(current_url)
+                except httpx.TimeoutException as exc:
+                    raise ValueError(f"Connection timed out while fetching {current_url} (limit: {self.timeout}s)") from exc
+                except httpx.RequestError as exc:
+                    raise ValueError(f"Network error while connecting to {current_url}: {str(exc)}") from exc
+
+                # Check if this is a redirect
+                if response.is_redirect and "location" in response.headers:
+                    redirect_count += 1
+                    if redirect_count > MAX_REDIRECTS:
+                        raise ValueError(f"Exceeded maximum allowed redirects ({MAX_REDIRECTS}).")
+
+                    location = response.headers["location"]
+                    next_url = urljoin(current_url, location)
+
+                    # Validate the redirect target against SSRF (e.g. stops attacker redirecting to 169.254.169.254)
+                    current_url = await validate_target_url(next_url, allow_private=settings.ALLOW_PRIVATE_IPS)
+                    continue
+
+                final_response = response
+                break
+
+            if not final_response:
+                raise ValueError(f"Failed to obtain a valid HTTP response from {url}")
+
+            # Enforce max page payload size
+            content_length_header = final_response.headers.get("content-length")
+            if content_length_header and content_length_header.isdigit():
+                if int(content_length_header) > settings.MAX_PAGE_SIZE_BYTES:
+                    raise ValueError(
+                        f"Page payload exceeds maximum allowable size ({settings.MAX_PAGE_SIZE_BYTES // (1024 * 1024)} MB)."
+                    )
+
+            if len(final_response.content) > settings.MAX_PAGE_SIZE_BYTES:
+                raise ValueError(
+                    f"Page payload exceeds maximum allowable size ({settings.MAX_PAGE_SIZE_BYTES // (1024 * 1024)} MB)."
+                )
 
             load_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
-            content_type = response.headers.get("content-type", "")
-            final_url = str(response.url)
+            content_type = final_response.headers.get("content-type", "")
+            final_url = str(final_response.url)
             is_https = final_url.startswith("https://")
-            status_code = response.status_code
+            status_code = final_response.status_code
 
             # Raw HTML and DOM parser
-            html_text = response.text or ""
+            html_text = final_response.text or ""
             soup = BeautifulSoup(html_text, "html.parser")
 
             # Extract basic tags
@@ -56,14 +103,18 @@ class WebsiteCrawler:
             meta_description = meta_desc_tag.get("content", "").strip() if meta_desc_tag else None
             meta_description_length = len(meta_description) if meta_description else 0
 
-            canonical_tag = soup.find("link", rel=lambda x: x and "canonical" in [item.lower() for item in (x if isinstance(x, list) else [x])])
+            canonical_tag = soup.find(
+                "link", rel=lambda x: x and "canonical" in [item.lower() for item in (x if isinstance(x, list) else [x])]
+            )
             canonical_url = canonical_tag.get("href", "").strip() if canonical_tag else None
 
             # Viewport & Charset
             viewport_tag = soup.find("meta", attrs={"name": lambda x: x and x.lower() == "viewport"})
             has_viewport = viewport_tag is not None
 
-            charset_tag = soup.find("meta", attrs={"charset": True}) or soup.find("meta", attrs={"http-equiv": lambda x: x and x.lower() == "content-type"})
+            charset_tag = soup.find("meta", attrs={"charset": True}) or soup.find(
+                "meta", attrs={"http-equiv": lambda x: x and x.lower() == "content-type"}
+            )
             has_charset = charset_tag is not None
 
             html_tag = soup.find("html")
@@ -119,7 +170,7 @@ class WebsiteCrawler:
                 "permissions-policy",
             ]
             security_headers = {
-                k: response.headers.get(k)
+                k: final_response.headers.get(k)
                 for k in sec_headers_keys
             }
 
@@ -127,14 +178,14 @@ class WebsiteCrawler:
             has_robots_txt, has_sitemap = await self._check_robots_and_sitemap(client, final_url)
 
             # Detect technologies
-            technologies = TechDetector.detect(soup, dict(response.headers), html_text)
+            technologies = TechDetector.detect(soup, dict(final_response.headers), html_text)
 
             metadata = CrawledMetadata(
                 url=url,
                 final_url=final_url,
                 status_code=status_code,
                 load_time_ms=load_time_ms,
-                page_size_bytes=len(response.content),
+                page_size_bytes=len(final_response.content),
                 content_type=content_type,
                 is_https=is_https,
                 title=title,
@@ -176,7 +227,6 @@ class WebsiteCrawler:
                 if res.status_code == 200:
                     return True
                 if res.status_code in (405, 403):
-                    # Some servers reject HEAD, try GET with range or small timeout
                     get_res = await client.get(u, timeout=3.0)
                     return get_res.status_code == 200
                 return False
