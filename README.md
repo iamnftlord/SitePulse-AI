@@ -33,8 +33,8 @@ SitePulse AI is an open-source website intelligence and technical defect auditin
 
 ```mermaid
 graph TD
-    User["User Browser"] -->|HTTP / HTTPS| Frontend["React + Vite Frontend (Nginx / Dev)"]
-    Frontend -->|POST /api/audit or /api/v1/analyze| Backend["FastAPI Backend Service"]
+    User["User Browser"] -->|HTTP / HTTPS| Frontend["React + Vite Frontend (Port 5173)"]
+    Frontend -->|POST /api/audit or /api/v1/analyze| Backend["FastAPI Backend Service (Port 8000)"]
     
     subgraph "Backend Core Pipeline"
         Security["SSRF Validator & Rate Limiter"] --> Crawler["Safe Crawler (HTTPX + BeautifulSoup)"]
@@ -50,29 +50,7 @@ graph TD
 
 ---
 
-## 🚀 Quick Start with Docker (Recommended)
-
-Run the entire stack with a single command:
-
-```bash
-# Clone the repository
-git clone https://github.com/iamnftlord/SitePulse-AI.git
-cd SitePulse-AI
-
-# Start Frontend & Backend
-docker compose up --build -d
-
-# Or start with bundled local Ollama service:
-docker compose --profile with-ai up --build -d
-```
-
-- **Frontend Dashboard:** [http://localhost:80](http://localhost:80)
-- **Backend API & Swagger Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Container Health Check:** [http://localhost:8000/healthz](http://localhost:8000/healthz)
-
----
-
-## 💻 Local Development Setup
+## 💻 Setup & Running Locally
 
 ### 1. Backend (Python + FastAPI)
 
@@ -93,6 +71,10 @@ pip install -r requirements.txt
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
+- **Interactive API Docs (Swagger):** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- **Alternative Docs (ReDoc):** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+- **Health Check Endpoint:** [http://127.0.0.1:8000/healthz](http://127.0.0.1:8000/healthz)
+
 ### 2. Frontend (React + Vite + Tailwind CSS)
 
 ```bash
@@ -105,7 +87,7 @@ npm install
 npm run dev
 ```
 
-The frontend will run at `http://localhost:5173/` and automatically proxies `/api/` requests to `http://localhost:8000`.
+The frontend dashboard will run at `http://localhost:5173/` and automatically proxies `/api/` requests to `http://127.0.0.1:8000`.
 
 ---
 
